@@ -807,7 +807,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                 }
                 // retry
             } else {
-                System.err.println("STATISTICS: total walked list = " + chasing.longValue() + " with total nodes walked = " + linkedListNodes.longValue() + " completed = " + helpedToComplete.longValue());
+                System.err.println("STATISTICS: submitted = " + submitted.longValue() + " total walked list = " + chasing.longValue() + " with total nodes walked = " + linkedListNodes.longValue() + " completed = " + helpedToComplete.longValue());
                 // no more tasks;
                 return list;
             }
@@ -980,7 +980,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             assert ! isShutdownComplete(oldStatus);  // because it can only ever be set, not cleared
             completeTermination();
         }
-        System.err.println("STATISTICS: total walked list = " + chasing.longValue() + " with total nodes walked = " + linkedListNodes.longValue() + " completed = " + helpedToComplete.longValue());
+        System.err.println("STATISTICS: submitted = " + submitted.longValue() + " total walked list = " + chasing.longValue() + " with total nodes walked = " + linkedListNodes.longValue() + " completed = " + helpedToComplete.longValue());
     }
 
     /**
@@ -1700,6 +1700,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
     private final LongAdder linkedListNodes = new LongAdder();
     private final LongAdder helpedToComplete = new LongAdder();
     private final LongAdder chasing = new LongAdder();
+    private final LongAdder submitted = new LongAdder();
 
 
     // =======================================================
@@ -1707,6 +1708,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
     // =======================================================
 
     private int tryExecute(final Runnable runnable) {
+        submitted.increment();
         QNode tailNext;
         if (TAIL_LOCK) lockTail();
         TaskNode tail = this.tail;
