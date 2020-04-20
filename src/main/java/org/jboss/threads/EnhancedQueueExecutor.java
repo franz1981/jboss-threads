@@ -979,6 +979,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             assert ! isShutdownComplete(oldStatus);  // because it can only ever be set, not cleared
             completeTermination();
         }
+        System.out.println("STATISTICS: total walked list = " + chasing.longValue() + " with total nodes walked = " + linkedListNodes.longValue() + " completed = " + helpedToComplete.longValue());
     }
 
     /**
@@ -1462,7 +1463,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                                         isShutdownRequested(oldVal) ||
                                         isAllowCoreTimeout(oldVal) ||
                                         currentSizeOf(oldVal) > coreSizeOf(oldVal)
-                                        ) {
+                                ) {
                                     if (newNode.compareAndSetTask(task, GAVE_UP)) {
                                         for (;;) {
                                             if (tryDeallocateThread(oldVal)) {
@@ -1695,6 +1696,11 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         return true;
     }
 
+    private final LongAdder linkedListNodes = new LongAdder();
+    private final LongAdder helpedToComplete = new LongAdder();
+    private final LongAdder chasing = new LongAdder();
+
+
     // =======================================================
     // Task submission
     // =======================================================
@@ -1704,13 +1710,27 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         if (TAIL_LOCK) lockTail();
         TaskNode tail = this.tail;
         TaskNode node = null;
-        int spins = 0;
         for (;;) {
             tailNext = tail.getNext();
             if (tailNext instanceof TaskNode) {
-                spins = onSpinMisses(spins);
-                tail = this.tail;
-                continue;
+                TaskNode tailNextTaskNode;
+                long walking = 0;
+                do {
+                    if (UPDATE_STATISTICS) spinMisses.increment();
+                    tailNextTaskNode = (TaskNode) tailNext;
+                    // retry
+                    tail = tailNextTaskNode;
+                    tailNext = tail.getNext();
+                    walking++;
+                } while (tailNext instanceof TaskNode);
+                linkedListNodes.add(walking);
+                chasing.add(1);
+                // opportunistically update for the possible benefit of other threads
+                if (UPDATE_TAIL) {
+                    if (compareAndSetTail(tail, tailNextTaskNode)) {
+                        helpedToComplete.increment();
+                    }
+                }
             }
             // we've progressed to the first non-task node, as far as we can see
             assert ! (tailNext instanceof TaskNode);
@@ -1749,7 +1769,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                     }
                     // otherwise the consumer gave up or was exited already, so fall out and...
                 }
-                spins = onSpinMisses(spins);
+                if (UPDATE_STATISTICS) spinMisses.increment();
                 // retry with new tail(snapshot) as was foretold
                 tail = this.tail;
             } else if (tailNext == null) {
@@ -1802,7 +1822,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                 }
                 // we failed; we have to drop the queue size back down again to compensate before we can retry
                 if (! NO_QUEUE_LIMIT) decreaseQueueSize();
-                spins = onSpinMisses(spins);
+                if (UPDATE_STATISTICS) spinMisses.increment();
                 // retry with new tail(snapshot)
                 tail = this.tail;
             } else {
@@ -1814,17 +1834,6 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             }
         }
         // not reached
-    }
-
-    // this method is sized to be smaller then default -XX:MaxInlineSize: beware making it bigger!
-    private int onSpinMisses(int spins) {
-        if (UPDATE_STATISTICS) spinMisses.increment();
-        if (spins == YIELD_SPINS) {
-            Thread.yield();
-            return 0;
-        } 
-        JDKSpecific.onSpinWait();
-        return spins + 1;
     }
 
     // =======================================================
@@ -1896,9 +1905,8 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             return false;
         }
         int newSize = oldSize + 1;
-        int spins = 0;
         while (! compareAndSetQueueSize(oldVal, withCurrentQueueSize(oldVal, newSize))) {
-            spins = onSpinMisses(spins);
+            if (UPDATE_STATISTICS) spinMisses.increment();
             oldVal = queueSize;
             oldSize = currentQueueSizeOf(oldVal);
             if (oldSize >= maxQueueSizeOf(oldVal)) {
@@ -1921,9 +1929,8 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         long oldVal;
         oldVal = queueSize;
         assert currentQueueSizeOf(oldVal) > 0;
-        int spins = 0;
         while (! compareAndSetQueueSize(oldVal, withCurrentQueueSize(oldVal, currentQueueSizeOf(oldVal) - 1))) {
-            spins = onSpinMisses(spins);
+            if (UPDATE_STATISTICS) spinMisses.increment();
             oldVal = queueSize;
             assert currentQueueSizeOf(oldVal) > 0;
         }
@@ -2115,9 +2122,9 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
          */
         @SuppressWarnings("unused")
         int p00, p01, p02, p03,
-            p04, p05, p06, p07,
-            p08, p09, p0A, p0B,
-            p0C, p0D, p0E, p0F;
+                p04, p05, p06, p07,
+                p08, p09, p0A, p0B,
+                p0C, p0D, p0E, p0F;
 
         PoolThreadNodeBase() {}
     }
