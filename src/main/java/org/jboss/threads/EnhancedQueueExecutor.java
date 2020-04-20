@@ -807,6 +807,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                 }
                 // retry
             } else {
+                System.err.println("STATISTICS: total walked list = " + chasing.longValue() + " with total nodes walked = " + linkedListNodes.longValue() + " completed = " + helpedToComplete.longValue());
                 // no more tasks;
                 return list;
             }
@@ -979,7 +980,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             assert ! isShutdownComplete(oldStatus);  // because it can only ever be set, not cleared
             completeTermination();
         }
-        System.out.println("STATISTICS: total walked list = " + chasing.longValue() + " with total nodes walked = " + linkedListNodes.longValue() + " completed = " + helpedToComplete.longValue());
+        System.err.println("STATISTICS: total walked list = " + chasing.longValue() + " with total nodes walked = " + linkedListNodes.longValue() + " completed = " + helpedToComplete.longValue());
     }
 
     /**
