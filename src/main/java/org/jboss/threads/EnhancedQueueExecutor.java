@@ -798,9 +798,11 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         QNode headNext;
         for (;;) {
             headNext = head.getNext();
-            if (headNext instanceof TaskNode) {
+            if (headNext != head && headNext instanceof TaskNode) {
                 TaskNode taskNode = (TaskNode) headNext;
                 if (compareAndSetHead(head, taskNode)) {
+                    // save from GC nepotism
+                    head.setNextRelaxed(head);
                     if (! NO_QUEUE_LIMIT) decreaseQueueSize();
                     head = taskNode;
                     list.add(taskNode.task);
@@ -1519,20 +1521,34 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             for (;;) {
                 head = EnhancedQueueExecutor.this.head;
                 headNext = head.getNext();
-                if (headNext instanceof TaskNode) {
-                    TaskNode taskNode = (TaskNode) headNext;
-                    if (compareAndSetHead(head, taskNode)) {
-                        if (! NO_QUEUE_LIMIT) decreaseQueueSize();
-                        return taskNode;
+                // that's happen if another consumer has already consumed head:
+                // retry with a fresh head
+                if (headNext != head) {
+                    if (headNext instanceof TaskNode) {
+                        TaskNode taskNode = (TaskNode) headNext;
+                        if (compareAndSetHead(head, taskNode)) {
+                            // save from GC Nepotism: generational GCs don't like
+                            // cross-generational references, so better to "clean-up" head::next
+                            // to save dragging head::next into the old generation.
+                            // Clean-up cannot just null out next
+                            head.setNextRelaxed(head);
+                            if (!NO_QUEUE_LIMIT) decreaseQueueSize();
+                            return taskNode;
+                        }
+                    } else if (headNext instanceof PoolThreadNode || headNext == null) {
+                        nextPoolThreadNode.setNextRelaxed(headNext);
+                        if (head.compareAndSetNext(headNext, nextPoolThreadNode)) {
+                            return nextPoolThreadNode;
+                        } else if (headNext != null) {
+                            // GC Nepotism:
+                            // save dragging headNext into old generation
+                            // (although being a PoolThreadNode it won't make a big difference)
+                            nextPoolThreadNode.setNextRelaxed(null);
+                        }
+                    } else {
+                        assert headNext instanceof TerminateWaiterNode;
+                        return headNext;
                     }
-                } else if (headNext instanceof PoolThreadNode || headNext == null) {
-                    nextPoolThreadNode.setNextRelaxed(headNext);
-                    if (head.compareAndSetNext(headNext, nextPoolThreadNode)) {
-                        return nextPoolThreadNode;
-                    }
-                } else {
-                    assert headNext instanceof TerminateWaiterNode;
-                    return headNext;
                 }
                 if (UPDATE_STATISTICS) spinMisses.increment();
                 JDKSpecific.onSpinWait();
@@ -1706,17 +1722,30 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         TaskNode node = null;
         for (;;) {
             tailNext = tail.getNext();
+            // tail is already consumed
+            if (tailNext == tail) {
+                if (UPDATE_STATISTICS) spinMisses.increment();
+                JDKSpecific.onSpinWait();
+                // retry with new tail(snapshot)
+                tail = this.tail;
+                continue;
+            }
+            assert tailNext != tail;
             if (tailNext instanceof TaskNode) {
-                TaskNode tailNextTaskNode;
-                do {
-                    if (UPDATE_STATISTICS) spinMisses.increment();
-                    tailNextTaskNode = (TaskNode) tailNext;
-                    // retry
-                    tail = tailNextTaskNode;
-                    tailNext = tail.getNext();
-                } while (tailNext instanceof TaskNode);
-                // opportunistically update for the possible benefit of other threads
-                if (UPDATE_TAIL) compareAndSetTail(tail, tailNextTaskNode);
+                if (UPDATE_TAIL) {
+                    // a success means that it has helped another producer to move forward
+                    final TaskNode candidateTail = (TaskNode) tailNext;
+                    if (compareAndSetTail(tail, candidateTail)) {
+                        // retry with new candidate tail
+                        tail = candidateTail;
+                        continue;
+                    }
+                }
+                if (UPDATE_STATISTICS) spinMisses.increment();
+                JDKSpecific.onSpinWait();
+                // retry with new tail(snapshot)
+                tail = this.tail;
+                continue;
             }
             // we've progressed to the first non-task node, as far as we can see
             assert ! (tailNext instanceof TaskNode);
@@ -1749,6 +1778,10 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                     // post-actions (fail):
                     //   retry outer with new tail(snapshot)
                     if (consumerNode.compareAndSetTask(WAITING, runnable)) {
+                        // GC Nepotism:
+                        // We can save consumerNode::next from being dragged into
+                        // old generation, if possible
+                        consumerNode.compareAndSetNext(tailNextNext, null);
                         if (TAIL_LOCK) unlockTail();
                         consumerNode.unpark();
                         return EXE_OK;
