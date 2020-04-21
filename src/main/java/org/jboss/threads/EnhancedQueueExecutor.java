@@ -306,9 +306,9 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
     private static final long TS_THREAD_CNT_MASK = 0b1111_1111_1111_1111_1111L; // 20 bits, can be shifted as needed
 
     // shift amounts
-    private static final long TS_CURRENT_SHIFT   = 0;
-    private static final long TS_CORE_SHIFT      = 20;
-    private static final long TS_MAX_SHIFT       = 40;
+    private static final long TS_CURRENT_SHIFT = 0;
+    private static final long TS_CORE_SHIFT = 20;
+    private static final long TS_MAX_SHIFT = 40;
 
     private static final long TS_ALLOW_CORE_TIMEOUT = 1L << 60;
     private static final long TS_SHUTDOWN_REQUESTED = 1L << 61;
@@ -362,7 +362,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         timeoutNanos = TimeUtil.clampedPositiveNanos(keepAliveTime);
         queueSize = withMaxQueueSize(withCurrentQueueSize(0L, 0), builder.getMaximumQueueSize());
         mxBean = new MXBeanImpl();
-        if (! DISABLE_MBEAN && builder.isRegisterMBean()) {
+        if (!DISABLE_MBEAN && builder.isRegisterMBean()) {
             final String configuredName = builder.getMBeanName();
             final String finalName = configuredName != null ? configuredName : "threadpool-" + unsafe.getAndAddInt(sequenceBase, sequenceOffset, 1);
             handle = doPrivileged(new MBeanRegisterAction(finalName, mxBean), acc);
@@ -417,7 +417,8 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         /**
          * Construct a new instance.
          */
-        public Builder() {}
+        public Builder() {
+        }
 
         /**
          * Get the configured thread factory.
@@ -556,7 +557,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         /**
          * Set the thread keep-alive time.
          *
-         * @param keepAliveTime the thread keep-alive time (must be greater than 0)
+         * @param keepAliveTime  the thread keep-alive time (must be greater than 0)
          * @param keepAliveUnits the time keepAliveUnits of the keep-alive time (must not be {@code null})
          * @return this builder
          * @see EnhancedQueueExecutor#setKeepAliveTime(long, TimeUnit)
@@ -756,7 +757,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         boolean ok = false;
         if (result == EXE_OK) {
             // last check to ensure that there is at least one existent thread to avoid rare thread timeout race condition
-            if (currentSizeOf(threadStatus) == 0 && tryAllocateThread(0.0f) == AT_YES && ! doStartThread(null)) {
+            if (currentSizeOf(threadStatus) == 0 && tryAllocateThread(0.0f) == AT_YES && !doStartThread(null)) {
                 deallocateThread();
             }
             if (UPDATE_STATISTICS) submittedTaskCounter.increment();
@@ -764,8 +765,9 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         } else if (result == EXE_CREATE_THREAD) try {
             ok = doStartThread(realRunnable);
         } finally {
-            if (! ok) deallocateThread();
-        } else {
+            if (!ok) deallocateThread();
+        }
+        else {
             if (UPDATE_STATISTICS) rejectedTaskCounter.increment();
             if (result == EXE_REJECT_SHUTDOWN) {
                 rejectShutdown(realRunnable);
@@ -796,14 +798,14 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         final ArrayList<Runnable> list = new ArrayList<>();
         TaskNode head = this.head;
         QNode headNext;
-        for (;;) {
+        for (; ; ) {
             headNext = head.getNext();
             if (headNext != head && headNext instanceof TaskNode) {
                 TaskNode taskNode = (TaskNode) headNext;
                 if (compareAndSetHead(head, taskNode)) {
                     // save from GC nepotism
                     head.setNextRelaxed(head);
-                    if (! NO_QUEUE_LIMIT) decreaseQueueSize();
+                    if (!NO_QUEUE_LIMIT) decreaseQueueSize();
                     head = taskNode;
                     list.add(taskNode.task);
                 }
@@ -839,7 +841,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
      * an {@link InterruptedException} is thrown.
      *
      * @param timeout the amount of time to wait (must be ≥ 0)
-     * @param unit the unit of time to use for waiting (must not be {@code null})
+     * @param unit    the unit of time to use for waiting (must not be {@code null})
      * @return {@code true} if the thread pool terminated within the given timeout, {@code false} otherwise
      * @throws InterruptedException if the calling thread was interrupted before either the time period elapsed or the pool terminated successfully
      */
@@ -857,7 +859,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             }
             final Waiter waiter = new Waiter(waiters);
             waiter.setThread(currentThread());
-            while (! compareAndSetTerminationWaiters(waiters, waiter)) {
+            while (!compareAndSetTerminationWaiters(waiters, waiter)) {
                 waiters = this.terminationWaiters;
                 if (waiters == TERMINATE_COMPLETE_WAITER) {
                     return true;
@@ -918,16 +920,16 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             if (interrupt) newStatus = withShutdownInterrupt(newStatus);
             if (currentSizeOf(oldStatus) == 0) newStatus = withShutdownComplete(newStatus);
             if (newStatus == oldStatus) return;
-        } while (! compareAndSetThreadStatus(oldStatus, newStatus));
+        } while (!compareAndSetThreadStatus(oldStatus, newStatus));
         assert oldStatus != newStatus;
         if (isShutdownRequested(newStatus) != isShutdownRequested(oldStatus)) {
-            assert ! isShutdownRequested(oldStatus); // because it can only ever be set, not cleared
+            assert !isShutdownRequested(oldStatus); // because it can only ever be set, not cleared
             // we initiated shutdown
             // clear out all consumers and append a dummy waiter node
             TaskNode tail = this.tail;
             QNode tailNext;
             // a marker to indicate that termination was requested
-            for (;;) {
+            for (; ; ) {
                 tailNext = tail.getNext();
                 if (tailNext instanceof TaskNode) {
                     tail = (TaskNode) tailNext;
@@ -971,14 +973,14 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             }
         }
         if (isShutdownInterrupt(newStatus) != isShutdownInterrupt(oldStatus)) {
-            assert ! isShutdownInterrupt(oldStatus); // because it can only ever be set, not cleared
+            assert !isShutdownInterrupt(oldStatus); // because it can only ever be set, not cleared
             // we initiated interrupt, so interrupt all currently active threads
             for (Thread thread : runningThreads) {
                 thread.interrupt();
             }
         }
         if (isShutdownComplete(newStatus) != isShutdownComplete(oldStatus)) {
-            assert ! isShutdownComplete(oldStatus);  // because it can only ever be set, not cleared
+            assert !isShutdownComplete(oldStatus);  // because it can only ever be set, not cleared
             completeTermination();
         }
     }
@@ -990,7 +992,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
      */
     public boolean isTerminating() {
         final long threadStatus = this.threadStatus;
-        return isShutdownRequested(threadStatus) && ! isShutdownComplete(threadStatus);
+        return isShutdownRequested(threadStatus) && !isShutdownComplete(threadStatus);
     }
 
     /**
@@ -998,7 +1000,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
      * but no thread is immediately available to handle the task.
      *
      * @return {@code true} if a core thread was started, or {@code false} if all core threads were already running or
-     *   if the thread failed to be created for some other reason
+     * if the thread failed to be created for some other reason
      */
     public boolean prestartCoreThread() {
         if (tryAllocateThread(1.0f) != AT_YES) return false;
@@ -1014,7 +1016,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
      */
     public int prestartAllCoreThreads() {
         int cnt = 0;
-        while (prestartCoreThread()) cnt ++;
+        while (prestartCoreThread()) cnt++;
         return cnt;
     }
 
@@ -1080,7 +1082,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             } else {
                 newVal = withCoreSize(oldVal, corePoolSize);
             }
-        } while (! compareAndSetThreadStatus(oldVal, newVal));
+        } while (!compareAndSetThreadStatus(oldVal, newVal));
         if (maxSizeOf(newVal) < maxSizeOf(oldVal) || coreSizeOf(newVal) < coreSizeOf(oldVal)) {
             // poke all the threads to try to terminate any excess eagerly
             for (Thread activeThread : runningThreads) {
@@ -1118,7 +1120,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             } else {
                 newVal = withMaxSize(oldVal, maxPoolSize);
             }
-        } while (! compareAndSetThreadStatus(oldVal, newVal));
+        } while (!compareAndSetThreadStatus(oldVal, newVal));
         if (maxSizeOf(newVal) < maxSizeOf(oldVal) || coreSizeOf(newVal) < coreSizeOf(oldVal)) {
             // poke all the threads to try to terminate any excess eagerly
             for (Thread activeThread : runningThreads) {
@@ -1151,7 +1153,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             oldVal = threadStatus;
             newVal = withAllowCoreTimeout(oldVal, value);
             if (oldVal == newVal) return;
-        } while (! compareAndSetThreadStatus(oldVal, newVal));
+        } while (!compareAndSetThreadStatus(oldVal, newVal));
         if (value) {
             // poke all the threads to try to terminate any excess eagerly
             for (Thread activeThread : runningThreads) {
@@ -1193,7 +1195,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
      * Unless core threads are allowed to time out, threads will only exit if the current thread count exceeds the core
      * limit.
      *
-     * @param keepAliveTime the thread keep-alive time (must be &gt; 0)
+     * @param keepAliveTime  the thread keep-alive time (must be &gt; 0)
      * @param keepAliveUnits the unit in which the value is expressed (must not be {@code null})
      * @see Builder#setKeepAliveTime(long, TimeUnit) Builder.setKeepAliveTime()
      * @deprecated Use {@link #setKeepAliveTime(Duration)} instead.
@@ -1242,7 +1244,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         long oldVal;
         do {
             oldVal = queueSize;
-        } while (! compareAndSetQueueSize(oldVal, withMaxQueueSize(oldVal, maxQueueSize)));
+        } while (!compareAndSetQueueSize(oldVal, withMaxQueueSize(oldVal, maxQueueSize)));
     }
 
     /**
@@ -1325,7 +1327,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
 
     /**
      * Get an estimate of the peak size of the queue.
-     *
+     * <p>
      * return an estimate of the peak size of the queue or -1 when {@code jboss.threads.eqe.statistics}
      * is disabled or {@code jboss.threads.eqe.unlimited-queue} is enabled
      */
@@ -1428,7 +1430,8 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
             PoolThreadNode nextPoolThreadNode = new PoolThreadNode(currentThread);
             // main loop
             QNode node;
-            processingQueue: for (;;) {
+            processingQueue:
+            for (; ; ) {
                 node = getOrAddNode(nextPoolThreadNode);
                 if (node instanceof TaskNode) {
                     // task node was removed
@@ -1442,7 +1445,8 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                     // at this point, we are registered into the queue
                     long start = System.nanoTime();
                     long elapsed = 0L;
-                    waitingForTask: for (;;) {
+                    waitingForTask:
+                    for (; ; ) {
                         Runnable task = newNode.getTask();
                         assert task != ACCEPTED && task != GAVE_UP;
                         if (task != WAITING && task != EXIT) {
@@ -1464,9 +1468,9 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                                         isShutdownRequested(oldVal) ||
                                         isAllowCoreTimeout(oldVal) ||
                                         currentSizeOf(oldVal) > coreSizeOf(oldVal)
-                                        ) {
+                                ) {
                                     if (newNode.compareAndSetTask(task, GAVE_UP)) {
-                                        for (;;) {
+                                        for (; ; ) {
                                             if (tryDeallocateThread(oldVal)) {
                                                 // clear to exit.
                                                 runningThreads.remove(currentThread);
@@ -1518,7 +1522,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         private QNode getOrAddNode(PoolThreadNode nextPoolThreadNode) {
             TaskNode head;
             QNode headNext;
-            for (;;) {
+            for (; ; ) {
                 head = EnhancedQueueExecutor.this.head;
                 headNext = head.getNext();
                 // that's happen if another consumer has already consumed head:
@@ -1580,6 +1584,16 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                 }
             }
         }
+    }
+
+    private int onSpinMisses(int spins) {
+        if (UPDATE_STATISTICS) spinMisses.increment();
+        if (spins == YIELD_SPINS) {
+            Thread.yield();
+            return 0;
+        }
+        JDKSpecific.onSpinWait();
+        return spins + 1;
     }
 
     // =======================================================
@@ -1720,12 +1734,12 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         if (TAIL_LOCK) lockTail();
         TaskNode tail = this.tail;
         TaskNode node = null;
+        int spins = 0;
         for (;;) {
             tailNext = tail.getNext();
             // tail is already consumed
             if (tailNext == tail) {
-                if (UPDATE_STATISTICS) spinMisses.increment();
-                JDKSpecific.onSpinWait();
+                spins = onSpinMisses(spins);
                 // retry with new tail(snapshot)
                 tail = this.tail;
                 continue;
@@ -1741,8 +1755,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                         continue;
                     }
                 }
-                if (UPDATE_STATISTICS) spinMisses.increment();
-                JDKSpecific.onSpinWait();
+                spins = onSpinMisses(spins);
                 // retry with new tail(snapshot)
                 tail = this.tail;
                 continue;
@@ -1788,7 +1801,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                     }
                     // otherwise the consumer gave up or was exited already, so fall out and...
                 }
-                if (UPDATE_STATISTICS) spinMisses.increment();
+                spins = onSpinMisses(spins);
                 // retry with new tail(snapshot) as was foretold
                 tail = this.tail;
             } else if (tailNext == null) {
@@ -1841,7 +1854,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
                 }
                 // we failed; we have to drop the queue size back down again to compensate before we can retry
                 if (! NO_QUEUE_LIMIT) decreaseQueueSize();
-                if (UPDATE_STATISTICS) spinMisses.increment();
+                spins = onSpinMisses(spins);
                 // retry with new tail(snapshot)
                 tail = this.tail;
             } else {
