@@ -50,7 +50,7 @@ import java.util.concurrent.locks.LockSupport;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 
-import org.jboss.threads.combiner.OptimizedCombiner;
+import org.jboss.threads.combiner.XaddCombiner;
 import org.jboss.threads.management.ManageableThreadPoolExecutorService;
 import org.jboss.threads.management.StandardThreadPoolMXBean;
 import org.wildfly.common.Assert;
@@ -190,7 +190,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
      */
     private final AccessControlContext acc;
 
-    private final OptimizedCombiner tryExecuteCombiner;
+    private final XaddCombiner tryExecuteCombiner;
 
     // =======================================================
     // Current state fields
@@ -369,7 +369,7 @@ public final class EnhancedQueueExecutor extends EnhancedQueueExecutorBase6 impl
         } else {
             handle = null;
         }
-        tryExecuteCombiner = new OptimizedCombiner();
+        tryExecuteCombiner = new XaddCombiner();
     }
 
     static final class MBeanRegisterAction implements PrivilegedAction<ObjectInstance> {
