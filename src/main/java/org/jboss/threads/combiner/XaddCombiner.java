@@ -21,17 +21,11 @@ package org.jboss.threads.combiner;
 import org.jctools.queues.MpscUnboundedXaddArrayQueue;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class XaddCombiner implements Combiner {
 
-    private static final class Operation extends AtomicBoolean implements AutoCloseable {
-        private Runnable runnable;
-
-        @Override
-        public void close() throws Exception {
-            runnable = null;
-            lazySet(false);
-        }
+    private static final class Operation extends AtomicReference<Runnable> {
     }
 
     private final MpscUnboundedXaddArrayQueue<Operation> queue;
@@ -46,28 +40,30 @@ public class XaddCombiner implements Combiner {
     @Override
 
     public void combine(Runnable action, IdleStrategy idleStrategy) {
+        final AtomicBoolean lock = this.lock;
+        final MpscUnboundedXaddArrayQueue<Operation> queue = this.queue;
         final Operation operation = OP_POOL.get();
-        operation.runnable = action;
+        operation.lazySet(action);
         queue.offer(operation);
         int idleCount = 0;
         for (; ; ) {
-            if (lock.compareAndSet(false, true)) {
+            if (!lock.get() && lock.compareAndSet(false, true)) {
                 idleCount = 0;
                 try {
                     Operation op;
                     while ((op = queue.poll()) != null) {
                         try {
-                            op.runnable.run();
+                            op.get().run();
                         } finally {
-                            op.runnable = null;
-                            op.lazySet(true);
+                            op.lazySet(null);
                         }
                     }
                 } finally {
                     lock.lazySet(false);
                 }
             }
-            if (operation.get()) {
+            // is being executed?
+            if (operation.get() == null) {
                 return;
             }
             idleCount = idleStrategy.idle(idleCount);
