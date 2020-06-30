@@ -51,7 +51,7 @@ public class XaddCombiner implements Combiner {
                 idleCount = 0;
                 try {
                     Operation op;
-                    while ((op = queue.poll()) != null) {
+                    while ((op = queue.relaxedPoll()) != null) {
                         try {
                             op.get().run();
                         } finally {
