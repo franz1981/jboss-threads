@@ -48,6 +48,7 @@ public class XaddCombiner implements Combiner {
     public void combine(Runnable action, IdleStrategy idleStrategy) {
         final Operation operation = OP_POOL.get();
         operation.runnable = action;
+        queue.offer(operation);
         int idleCount = 0;
         for (; ; ) {
             if (lock.compareAndSet(false, true)) {
