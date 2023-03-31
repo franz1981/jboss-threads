@@ -354,10 +354,15 @@ public final class JBossExecutors {
      * @return the old context class loader
      */
     static ClassLoader getAndSetContextClassLoader(final Thread thread, final ClassLoader newClassLoader) {
+        boolean same = false;
         try {
-            return getContextClassLoader(thread);
+            ClassLoader cl = getContextClassLoader(thread);
+            same = (cl == newClassLoader);
+            return cl;
         } finally {
-            setContextClassLoader(thread, newClassLoader);
+            if (!same) {
+                setContextClassLoader(thread, newClassLoader);
+            }
         }
     }
 
